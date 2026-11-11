@@ -340,8 +340,7 @@ struct DropShelfView: View {
         let zone = DropShelfController.zoneSize
         if let target = model.target, let p = model.pointer {
             TargetLabel(target: target)
-                .frame(maxWidth: zone.width - 32)
-                .fixedSize(horizontal: false, vertical: true)
+                .fixedSize()
                 .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { labelWidth = $0 }
                 .position(Self.labelCenter(pointer: p, labelWidth: labelWidth, zone: zone))
                 .animation(.spring(response: 0.22, dampingFraction: 0.85), value: p)
@@ -374,7 +373,8 @@ struct DropShelfView: View {
             y = p.y
         } else {
             x = p.x
-            y = p.y > zone.height / 2 ? p.y - 42 : p.y + 42
+            // Above when there's room: a dragged icon (and its file name) hangs below the pointer.
+            y = p.y - 42 >= 22 ? p.y - 42 : p.y + 42
         }
         return CGPoint(x: min(max(x, inset + w / 2), zone.width - inset - w / 2),
                        y: min(max(y, 22), zone.height - 22))
@@ -384,13 +384,17 @@ struct DropShelfView: View {
 private struct TargetLabel: View {
     let target: DropShelfController.Target
 
+    /// Keeps the label well inside the zone (it is laid out at its natural width).
+    static func short(_ name: String) -> String {
+        name.count > 26 ? String(name.prefix(25)) + "…" : name
+    }
+
     var body: some View {
         HStack(spacing: 6) {
             Face(target: target, size: 20)
-            Text("Drop to \(target.name)")
+            Text("Drop to \(Self.short(target.name))")
                 .font(.system(size: 13, weight: .semibold))
                 .lineLimit(1)
-                .truncationMode(.tail)
                 .contentTransition(.interpolate)
         }
         .padding(.leading, 4)
