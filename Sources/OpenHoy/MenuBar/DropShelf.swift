@@ -359,15 +359,25 @@ struct DropShelfView: View {
         }
     }
 
-    /// Beside the pointer, clear of the dragged icon, on whichever side has more room, and
-    /// never past the zone's edges.
+    /// Beside the pointer, clear of the dragged icon, on a side where it fits; above or below
+    /// the pointer when neither side has room. Never past the zone's edges.
     nonisolated static func labelCenter(pointer p: CGPoint, labelWidth w: CGFloat, zone: CGSize) -> CGPoint {
         let gap: CGFloat = 40, inset: CGFloat = 14
-        let onRight = p.x < zone.width / 2
-        let wanted = onRight ? p.x + gap + w / 2 : p.x - gap - w / 2
-        let x = min(max(wanted, inset + w / 2), zone.width - inset - w / 2)
-        let y = min(max(p.y, 24), zone.height - 24)
-        return CGPoint(x: x, y: y)
+        let fitsRight = p.x + gap + w <= zone.width - inset
+        let fitsLeft = p.x - gap - w >= inset
+        let x: CGFloat, y: CGFloat
+        if fitsRight && (!fitsLeft || p.x < zone.width / 2) {
+            x = p.x + gap + w / 2
+            y = p.y
+        } else if fitsLeft {
+            x = p.x - gap - w / 2
+            y = p.y
+        } else {
+            x = p.x
+            y = p.y > zone.height / 2 ? p.y - 42 : p.y + 42
+        }
+        return CGPoint(x: min(max(x, inset + w / 2), zone.width - inset - w / 2),
+                       y: min(max(y, 22), zone.height - 22))
     }
 }
 
