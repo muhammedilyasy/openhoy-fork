@@ -13,6 +13,7 @@ A menu bar messenger for macOS that runs on **iMessage**. It needs no account, n
   - **⏎** or the **↑** button sends, **⇧⏎** adds a new line, and **Esc** discards the draft (or closes the panel).
   - 🎙 **Voice notes** (mic button, or **+** › Voice Note) show a live waveform and a live on-device transcript. Press **■** or ⏎ to stop, play it back, then send. The audio goes out as an `.m4a`, and the transcript is sent as a text (you can turn this off).
   - 📎 **Files and photos**, from **+** › Attach Files, pasted with ⌘V, or **dragged onto someone's avatar** in the menu bar (or onto the panel).
+  - 🫳 **Just throw stuff at them.** Start dragging files anywhere and a glass drop zone drops down under your avatars. Slide across it to pick a person (their face lights up and it says *Drop to Rodrigo*), then let go to drop the files into their chat. Turn it off in **Settings › Options**.
   - 🎥 **Video notes** from your camera, with a round live preview.
   - ⏺ **Screen recordings.** *Record Screen with Microphone ▾ Camera ▾*. Click a window, drag to select an area, or press Esc to cancel. A round face bubble follows you while recording, and the menu bar shows a red stop button.
 - **Messages from your history:** text, photos, videos, voice notes, files and tapbacks (♥ 👍 👎 HA ‼ ? and emoji). Edited messages show *Edited*, unsent ones a short notice, and your latest message shows *Sent*, *Delivered*, *Read* or *Not Delivered* exactly as Messages recorded it. New messages and changes appear almost immediately (OpenHoy watches the database instead of polling it).

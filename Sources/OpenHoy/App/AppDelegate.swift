@@ -57,6 +57,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
+        #if DEBUG
+        if env["OPENHOY_DROPSHELF_TEST"] != nil {
+            let path = env["OPENHOY_DROPSHELF_TEST"].flatMap { $0.isEmpty || $0 == "1" ? nil : $0 }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                statusBar.dropShelfTest(snapshot: path.map { URL(fileURLWithPath: $0) })
+            }
+        }
+        #endif
         if env["OPENHOY_SELFTEST"] != nil {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { statusBar.selfTest() }
         }

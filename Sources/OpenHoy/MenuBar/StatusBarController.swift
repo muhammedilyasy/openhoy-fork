@@ -19,6 +19,7 @@ final class StatusBarController: NSObject {
     private let strip = AvatarStripView()
     private var cancellables = Set<AnyCancellable>()
     private let tooltip = AvatarTooltip()
+    private let dropShelf = DropShelfController()
 
     var onOpenSettings: (() -> Void)?
     var onStopScreenRecording: (() -> Void)?
@@ -49,6 +50,19 @@ final class StatusBarController: NSObject {
             guard let self, abs(self.item.length - width) > 0.25 else { return }
             self.item.length = width
         }
+
+        dropShelf.targets = { [weak self] in
+            guard let self else { return [] }
+            return self.strip.entries.map { DropShelfController.Target(guid: $0.guid, name: $0.person.firstName, image: $0.person.image) }
+        }
+        dropShelf.anchor = { [weak self] in self?.strip.window == nil ? nil : self?.strip.screenBounds }
+        dropShelf.isEnabled = { AppState.shared.dropShelf }
+        dropShelf.onVisibilityChange = { [weak self] open in
+            self?.tooltip.hide()
+            self?.strip.setShelfOpen(open)
+        }
+        dropShelf.onTargetChange = { [weak self] guid in self?.strip.setShelfTarget(guid) }
+        dropShelf.onDrop = { [weak self] guid, urls in self?.dropped(urls, on: guid) }
 
         Publishers.MergeMany(
             state.$pinnedGUIDs.map { _ in () }.eraseToAnyPublisher(),
@@ -130,7 +144,8 @@ final class StatusBarController: NSObject {
     }
 
     private func hover(_ guid: String?) {
-        guard let guid, let chat = state.chat(guid: guid), state.openChatGUID != guid,
+        // While the drop zone is open it names the person itself.
+        guard !dropShelf.isVisible, let guid, let chat = state.chat(guid: guid), state.openChatGUID != guid,
               let rect = strip.screenRect(for: guid) else {
             tooltip.hide()
             return
@@ -177,6 +192,10 @@ final class StatusBarController: NSObject {
     @objc private func openSettings() { onOpenSettings?() }
 
     // MARK: - Debug
+
+    #if DEBUG
+    func dropShelfTest(snapshot url: URL?) { dropShelf.debugWalk(snapshot: url) }
+    #endif
 
     func snapshot(to url: URL) {
         guard let rep = strip.bitmapImageRepForCachingDisplay(in: strip.bounds) else { return }
@@ -285,6 +304,8 @@ final class AvatarStripView: NSView {
         }
     }
     private var dragTarget: String?
+    /// The drop zone under the menu bar is open: fan out so each face can be told apart.
+    private var shelfOpen = false
     private var trackingArea: NSTrackingArea?
 
     override init(frame: NSRect) {
@@ -303,7 +324,7 @@ final class AvatarStripView: NSView {
         return padding * 2 + recordWidth + edgeRoom + Self.avatarSize + spread
     }
 
-    private var isFanned: Bool { pointerX != nil || dragTarget != nil || entries.contains(where: \.active) }
+    private var isFanned: Bool { pointerX != nil || dragTarget != nil || shelfOpen || entries.contains(where: \.active) }
 
     /// Where each face's centre is heading.
     private func targetCenters(hovered: Int?, fanned: Bool? = nil) -> [CGFloat] {
@@ -569,6 +590,20 @@ final class AvatarStripView: NSView {
     }
 
     // MARK: Drag & drop
+
+    func setShelfOpen(_ open: Bool) {
+        guard shelfOpen != open else { return }
+        shelfOpen = open
+        if !open { dragTarget = nil }
+        animate()
+    }
+
+    /// Lights up the face picked in the drop zone, as if a drag were over it.
+    func setShelfTarget(_ guid: String?) {
+        guard dragTarget != guid else { return }
+        dragTarget = guid
+        animate()
+    }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation { dragUpdated(sender) }
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation { dragUpdated(sender) }

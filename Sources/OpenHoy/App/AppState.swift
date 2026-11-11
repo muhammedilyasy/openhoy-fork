@@ -53,6 +53,10 @@ final class AppState: ObservableObject {
     @Published var sendTranscripts: Bool {
         didSet { UserDefaults.standard.set(sendTranscripts, forKey: Keys.sendTranscripts) }
     }
+    /// Open a drop zone under the avatars whenever files are being dragged.
+    @Published var dropShelf: Bool {
+        didSet { UserDefaults.standard.set(dropShelf, forKey: Keys.dropShelf) }
+    }
 
     private var knownChats: [String: ChatSummary] = [:]
     /// Merged-away chat guid → the conversation guid it now belongs to.
@@ -77,12 +81,14 @@ final class AppState: ObservableObject {
         static let sendTranscripts = "sendTranscripts"
         static let transcripts = "sentTranscripts"
         static let theme = "theme"
+        static let dropShelf = "dropShelf"
     }
 
     private init() {
         let defaults = UserDefaults.standard
         pinnedGUIDs = defaults.stringArray(forKey: Keys.pinned) ?? []
         sendTranscripts = defaults.object(forKey: Keys.sendTranscripts) as? Bool ?? true
+        dropShelf = defaults.object(forKey: Keys.dropShelf) as? Bool ?? true
         let savedTheme = defaults.string(forKey: Keys.theme).flatMap(ThemeChoice.init(rawValue:)) ?? .messages
         theme = savedTheme
         Theme.choice = savedTheme

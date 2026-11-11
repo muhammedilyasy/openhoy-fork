@@ -222,6 +222,7 @@ struct SettingsView: View {
     private var options: some View {
         SettingsSection(title: "Options") {
             Toggle("Send the transcript as text with voice notes", isOn: $state.sendTranscripts)
+            Toggle("Show a drop zone under the menu bar while dragging files", isOn: $state.dropShelf)
             Toggle("Open OpenHoy at login", isOn: $launchAtLogin)
                 .onChange(of: launchAtLogin) { _, enabled in
                     do {
@@ -231,7 +232,7 @@ struct SettingsView: View {
                     }
                 }
             HStack {
-                Text("Tip: drag files onto someone's avatar in the menu bar to drop them straight in.")
+                Text("Tip: start dragging files and throw them at someone in the drop zone, or onto their avatar.")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
                 Spacer()
                 Button("Quit OpenHoy") { NSApp.terminate(nil) }
