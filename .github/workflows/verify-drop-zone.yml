@@ -1,0 +1,45 @@
+name: verify-drop-zone
+on: [push, workflow_dispatch]
+jobs:
+  verify:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Release build
+        run: SIGN_IDENTITY=- scripts/build-app.sh 2>&1 | tail -30
+      - name: Debug build
+        run: CONFIG=debug SIGN_IDENTITY=- scripts/build-app.sh 2>&1 | tail -30
+      - name: Warnings in new file
+        run: swift build -c debug 2>&1 | grep -i "DropShelf\|StatusBarController" || echo "no warnings in touched files"
+      - name: Demo DB
+        run: python3 scripts/make-demo-db.py /tmp/openhoy-demo
+      - name: Synthetic walk (debug hook)
+        run: |
+          mkdir -p out
+          OPENHOY_CHAT_DB=/tmp/openhoy-demo/chat.db OPENHOY_DRY_RUN=1 OPENHOY_DROPSHELF_TEST=$PWD/out/walk.png \
+            build/OpenHoy.app/Contents/MacOS/OpenHoy > out/walk.log 2>&1 &
+          PID=$!
+          sleep 9
+          screencapture -x out/walk-screen.png || true
+          kill $PID || true
+          cat out/walk.log
+      - name: Real drag end to end
+        run: |
+          mkdir -p out
+          echo "hello" > /tmp/ios-preview.txt
+          swiftc -O ci-verify/dragger.swift -o /tmp/dragger
+          OPENHOY_CHAT_DB=/tmp/openhoy-demo/chat.db OPENHOY_DRY_RUN=1 \
+            build/OpenHoy.app/Contents/MacOS/OpenHoy > out/app.log 2>&1 &
+          PID=$!
+          sleep 6
+          /tmp/dragger /tmp/ios-preview.txt $PWD/out || echo "dragger exit $?"
+          sleep 2
+          kill $PID || true
+          echo "---- app log"; cat out/app.log
+          grep -q "DROPSHELF dropped 1 file" out/app.log && echo "E2E DROP OK" || echo "E2E DROP NOT SEEN"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: out
+          path: out
