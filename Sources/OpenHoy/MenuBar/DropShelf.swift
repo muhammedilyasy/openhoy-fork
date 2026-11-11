@@ -64,10 +64,17 @@ final class DropShelfController {
 
     private func tick() {
         guard NSEvent.pressedMouseButtons & 1 != 0 else {
-            // Button released: the drag (if any) is over.
+            // Button released: the drag (if any) is over. AppKit delivers the drop itself a
+            // moment after the button comes up, so the zone (and its target) must outlive the
+            // release or the drop would find nobody to go to.
             poll?.invalidate()
             poll = nil
-            hide()
+            if isVisible {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+                    guard let self, self.poll == nil else { return }
+                    self.hide()
+                }
+            }
             return
         }
         guard !isVisible else { return }
@@ -188,7 +195,12 @@ final class DropShelfController {
     }
 
     private func dropped(_ urls: [URL]) -> Bool {
-        guard let guid = model.target?.guid, !urls.isEmpty else { return false }
+        guard let guid = model.target?.guid, !urls.isEmpty else {
+            #if DEBUG
+            NSLog("DROPSHELF drop refused: target=%@ files=%d", model.target?.name ?? "nil", urls.count)
+            #endif
+            return false
+        }
         #if DEBUG
         NSLog("DROPSHELF dropped %d file(s) on %@ (%@)", urls.count, model.target?.name ?? "", guid)
         #endif
@@ -248,9 +260,19 @@ final class DropShelfDropView: NSView {
         NSRect(x: zoneInset, y: zoneInset, width: max(0, bounds.width - zoneInset * 2), height: max(0, bounds.height - zoneInset))
     }
 
-    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation { update(sender) }
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        #if DEBUG
+        NSLog("DROPSHELF entered at %@", NSStringFromPoint(convert(sender.draggingLocation, from: nil)))
+        #endif
+        return update(sender)
+    }
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation { update(sender) }
-    override func draggingExited(_ sender: NSDraggingInfo?) { onExit?() }
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        #if DEBUG
+        NSLog("DROPSHELF exited")
+        #endif
+        onExit?()
+    }
 
     private func update(_ sender: NSDraggingInfo) -> NSDragOperation {
         let p = convert(sender.draggingLocation, from: nil)
@@ -267,6 +289,9 @@ final class DropShelfDropView: NSView {
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        #if DEBUG
+        NSLog("DROPSHELF perform at %@", NSStringFromPoint(convert(sender.draggingLocation, from: nil)))
+        #endif
         let urls = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self],
                                                          options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
         return onDrop?(urls) ?? false
@@ -287,6 +312,8 @@ final class DropShelfModel: ObservableObject {
 struct DropShelfView: View {
     @ObservedObject var model: DropShelfModel
     @Environment(\.colorScheme) private var scheme
+    /// Measured width of the "Drop to …" label, so it can be kept inside the zone.
+    @State private var labelWidth: CGFloat = 120
 
     private let radius: CGFloat = 30
 
@@ -312,14 +339,11 @@ struct DropShelfView: View {
     private var label: some View {
         let zone = DropShelfController.zoneSize
         if let target = model.target, let p = model.pointer {
-            // Beside the pointer, on whichever side has room, clear of the dragged icon.
-            let onRight = p.x < zone.width / 2
-            let gap: CGFloat = 46
-            let y = min(max(p.y, 26), zone.height - 26)
             TargetLabel(target: target)
-                .fixedSize()
-                .frame(width: 0, alignment: onRight ? .leading : .trailing)
-                .position(x: onRight ? p.x + gap : p.x - gap, y: y)
+                .frame(maxWidth: zone.width - 32)
+                .fixedSize(horizontal: false, vertical: true)
+                .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { labelWidth = $0 }
+                .position(Self.labelCenter(pointer: p, labelWidth: labelWidth, zone: zone))
                 .animation(.spring(response: 0.22, dampingFraction: 0.85), value: p)
         } else {
             VStack(spacing: 6) {
@@ -334,6 +358,17 @@ struct DropShelfView: View {
             }
         }
     }
+
+    /// Beside the pointer, clear of the dragged icon, on whichever side has more room, and
+    /// never past the zone's edges.
+    nonisolated static func labelCenter(pointer p: CGPoint, labelWidth w: CGFloat, zone: CGSize) -> CGPoint {
+        let gap: CGFloat = 40, inset: CGFloat = 14
+        let onRight = p.x < zone.width / 2
+        let wanted = onRight ? p.x + gap + w / 2 : p.x - gap - w / 2
+        let x = min(max(wanted, inset + w / 2), zone.width - inset - w / 2)
+        let y = min(max(p.y, 24), zone.height - 24)
+        return CGPoint(x: x, y: y)
+    }
 }
 
 private struct TargetLabel: View {
@@ -345,6 +380,7 @@ private struct TargetLabel: View {
             Text("Drop to \(target.name)")
                 .font(.system(size: 13, weight: .semibold))
                 .lineLimit(1)
+                .truncationMode(.tail)
                 .contentTransition(.interpolate)
         }
         .padding(.leading, 4)
@@ -387,18 +423,18 @@ private struct DotField: View {
     var body: some View {
         Canvas { context, size in
             let spacing: CGFloat = 11
-            let dot: CGFloat = 1.6
+            let dot: CGFloat = 1.8
             let reach: CGFloat = 120
             let base = dark ? Color.white : Color.black
             var y = spacing / 2
             while y < size.height {
                 var x = spacing / 2
                 while x < size.width {
-                    var alpha: Double = 0.07
+                    var alpha: Double = dark ? 0.09 : 0.12
                     if let p = pointer {
                         let d: CGFloat = hypot(x - p.x, y - p.y)
                         let glow: CGFloat = max(0, 1 - d / reach)
-                        alpha += 0.38 * Double(glow)
+                        alpha += (dark ? 0.5 : 0.45) * Double(glow * glow)
                     }
                     context.fill(Path(ellipseIn: CGRect(x: x - dot / 2, y: y - dot / 2, width: dot, height: dot)),
                                  with: .color(base.opacity(alpha)))
