@@ -394,10 +394,11 @@ private struct DotField: View {
             while y < size.height {
                 var x = spacing / 2
                 while x < size.width {
-                    var alpha = 0.07
+                    var alpha: Double = 0.07
                     if let p = pointer {
-                        let d = hypot(x - p.x, y - p.y)
-                        alpha += 0.38 * max(0, 1 - d / reach)
+                        let d: CGFloat = hypot(x - p.x, y - p.y)
+                        let glow: CGFloat = max(0, 1 - d / reach)
+                        alpha += 0.38 * Double(glow)
                     }
                     context.fill(Path(ellipseIn: CGRect(x: x - dot / 2, y: y - dot / 2, width: dot, height: dot)),
                                  with: .color(base.opacity(alpha)))
