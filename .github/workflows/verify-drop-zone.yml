@@ -13,7 +13,7 @@ jobs:
       - name: Warnings in new file
         run: swift build -c debug 2>&1 | grep -i "DropShelf\|StatusBarController" || echo "no warnings in touched files"
       - name: Demo DB
-        run: python3 scripts/make-demo-db.py /tmp/openhoy-demo
+        run: mkdir -p /tmp/openhoy-demo/att && python3 scripts/make-demo-db.py /tmp/openhoy-demo
       - name: Synthetic walk (debug hook)
         run: |
           mkdir -p out
